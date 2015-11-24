@@ -1,0 +1,2070 @@
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
+\begin_document
+\begin_header
+\textclass article
+\begin_preamble
+\usepackage{xcolor}
+\lstset{
+  numbers=left,
+  numberstyle=\tiny\color{gray}    
+}
+\end_preamble
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_amsmath 1
+\use_esint 1
+\use_mhchem 1
+\use_mathdots 1
+\cite_engine basic
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+HybridSim Manual
+\end_layout
+
+\begin_layout Author
+Michael Woodhams
+\end_layout
+
+\begin_layout Date
+September 2015
+\end_layout
+
+\begin_layout Standard
+HybridSim is a simulator for generating phylogenies in the presence of hybridiza
+tion.
+ It operates in two modes.
+ In simple mode, it outputs a single reticulate phylogeny plus a set of
+ trees.
+ In statistics mode, it simulates many reticulate phylogenies and outputs
+ a set of statistics derived from each.
+\end_layout
+
+\begin_layout Standard
+Input files are in Nexus format.
+ In simple mode, the output Nexus file includes input blocks specifying
+ the parameters of the simulation -- thus the file contains not only the
+ output of the program, but records the exact input that produced this output,
+ and so is fully self documenting.
+ The output file can even be used as an input file, in which case HybridSim
+ will throw out all of the output blocks and regenerate them.
+ (HybridSim is 
+\begin_inset Quotes eld
+\end_inset
+
+idempotent
+\begin_inset Quotes erd
+\end_inset
+
+ in this mode: using the output of one run as the input to another run will
+ produce identical output.)
+\end_layout
+
+\begin_layout Standard
+HybridSim uses a lightly modified version of the PAL library version 1.5.1
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "PAL"
+
+\end_inset
+
+, and BioJava version 1.8.4
+\begin_inset CommandInset citation
+LatexCommand cite
+key "BioJava"
+
+\end_inset
+
+ for Nexus file parsing.
+\end_layout
+
+\begin_layout Section*
+Simulation
+\end_layout
+
+\begin_layout Standard
+The mathematical details behind HybridSim are described in more detail in
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HybridSim"
+
+\end_inset
+
+, but in this section we give a brief recapitulation.
+ HybridSim is a forwards-in-time simulator of reticulate phylogenies, allowing
+ two types of reticulation (hybridization and introgression), with the probabili
+ty of hybridization being a function of genetic distance, with rates of
+ various processess varying with time.
+\end_layout
+
+\begin_layout Section*
+Terminology
+\end_layout
+
+\begin_layout Description
+Epoch HybridSim allows some parameters to vary with time, as a series of
+ step functions.
+ An epoch is a period of time within which all parameters are constant.
+ Parameters can change value only at the boundaries between epochs.
+\end_layout
+
+\begin_layout Description
+Gene
+\begin_inset space ~
+\end_inset
+
+Tree A gene tree represents the phylogeny of a given gene.
+ It is derived from a lineage tree (which defines the phylogeny of the locus
+ at which the gene sits) by a lineage sorting/coalescent random process.
+ Nodes on the gene tree always predate the corresponding node in the lineage
+ tree (or network), and it may have differet topology to the lineage tree
+ which generated it, due to incomplete lineage sorting.
+\end_layout
+
+\begin_layout Description
+Hybridization An event where a new species is formed with its initial geneome
+ being derived from two parent species.
+ Some proportion of its initial genome comes from one parent, the remainder
+ from the other.
+\end_layout
+
+\begin_layout Description
+Introgression An event where a species has some proportion of its genome
+ overwritten by that of another species.
+ (This may be caused by hybrid individuals who then enter the gene pool
+ of the introgressed species.) This could also be called a horizontal gene
+ transfer event.
+\end_layout
+
+\begin_layout Description
+Lineage
+\begin_inset space ~
+\end_inset
+
+Tree A tree (embedded in the network) representing the lineage of a given
+ locus.
+ At each reticulation event, the lineage will inherit from one of the parent
+ species only.
+ Nodes on the lineage tree correspond exactly to speciation and hybridization
+ events in the network.
+\end_layout
+
+\begin_layout Description
+Network A reticulate phylogeny, i.e.
+ a phylogeny including hybridization and introgression events
+\end_layout
+
+\begin_layout Description
+Reticulation Either a hybridization or introgression (i.e.
+ any node in the network with in-degree greater than one represents an instance
+ of reticulation.)
+\end_layout
+
+\begin_layout Section*
+Nexus File Format
+\end_layout
+
+\begin_layout Standard
+HybridSim takes a Nexus file as input.
+ This Nexus file will contain a hybridsim block and may also contain a hybridABC
+grid block.
+\end_layout
+
+\begin_layout Standard
+If the hybridABCgrid block is absent, HybridSim works in its simple mode
+ of operation, each run produces a single random network.
+ Output is a Nexus file containing the network (in extended Newick format
+\begin_inset CommandInset citation
+LatexCommand cite
+key "extNewick"
+
+\end_inset
+
+) and several sets of trees, as well as the input parameters.
+ It can also (depending on input parametes) simulate a Dollo process which
+ will result in a characters block.
+ A distances block records the average genetic distance between taxa (i.e.
+ terminal nodes in the network.)
+\end_layout
+
+\begin_layout Standard
+If the hybridABCgrid block is present, HybridSim will generate many networks,
+ and for each network a number of gene trees.
+ It will output summary statistics for each network's set of gene trees
+ into a (non-Nexus) text file.
+ (In principle, a Nexus characters block could contain this information,
+ but coaxing Biojava to produce something useful was very hard.
+ I could revisit this, if there is demand.)
+\end_layout
+
+\begin_layout Subsection*
+HybridSim input block
+\end_layout
+
+\begin_layout Standard
+The hybridsim block contains a list of <parameter>=<value> pairs.
+ Parameter names are not case sensitive.
+\end_layout
+
+\begin_layout Standard
+Some parameters can change their value with time - they are piecewise constant
+ functions.
+ The 
+\begin_inset Quotes eld
+\end_inset
+
+epochs
+\begin_inset Quotes erd
+\end_inset
+
+ parameter specifies the times at which other parameters may change their
+ values.
+ It contains a parenthesis-delimited monotonically increasing list of non-negati
+ve real numbers.
+ Time variable parameters specify a list of values, of length one greater
+ than the length of the epochs list.
+ For example we could have 
+\begin_inset Quotes eld
+\end_inset
+
+epochs = (0.5,1)
+\begin_inset Quotes erd
+\end_inset
+
+ and 
+\begin_inset Quotes eld
+\end_inset
+
+speciation rate = (5,3,1)
+\begin_inset Quotes erd
+\end_inset
+
+, indicating that speciation rate is 5 up to time 0.5, rate is 3 between
+ 0.5 and 1, and rate is 1 thereafter.
+ A single value may be specified where a list is expected, in which case
+ that value holds for all epochs.
+ In the above example 
+\begin_inset Quotes eld
+\end_inset
+
+coalescence rate = (10)
+\begin_inset Quotes erd
+\end_inset
+
+ is synonymous with 
+\begin_inset Quotes eld
+\end_inset
+
+coalescence rate = (10,10,10)
+\begin_inset Quotes erd
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+Some values are discrete distributions, which are a list of value-weight
+ pairs.
+ For example, 
+\begin_inset Quotes eld
+\end_inset
+
+(0.1,2,0.2,1)
+\begin_inset Quotes erd
+\end_inset
+
+ specifies a distribution which will evaluate to 0.1 twice as often as it
+ evaluates to 0.2.
+ (The distribution 
+\begin_inset Quotes eld
+\end_inset
+
+(0.1,10,0.2,5)
+\begin_inset Quotes erd
+\end_inset
+
+ is exactly synonymous to the above.) 
+\end_layout
+
+\begin_layout Standard
+Comments can be added inside square brackets, as normal for a Nexus file.
+ These comments will not get reproduced in the output Nexus file.
+\end_layout
+
+\begin_layout Description
+coalesce (Boolean.) If true, include in the output a trees block of gene
+ trees derived from lineage trees by coalescence.
+ 
+\emph on
+Default = true.
+
+\emph default
+ 
+\end_layout
+
+\begin_layout Description
+coalescence
+\begin_inset space ~
+\end_inset
+
+rate (List of non-negative reals.) The epoch-dependent coalescence rate.
+ This is the rate at which two gene lineages which are able to coalesce
+ will do so.
+ This and 
+\begin_inset Quotes eld
+\end_inset
+
+coalescence time
+\begin_inset Quotes erd
+\end_inset
+
+ are different ways of setting the same variable - don't use both.
+ 
+\emph on
+Default = (1).
+\end_layout
+
+\begin_layout Description
+coalescence
+\begin_inset space ~
+\end_inset
+
+time (List of non-negative reals.) The epoch-dependent coalescence time.
+ This is the mean time for two gene lineages which are able to coalesce
+ will do so.
+ This and 
+\begin_inset Quotes eld
+\end_inset
+
+coalescence rate
+\begin_inset Quotes erd
+\end_inset
+
+ are different (inverse) ways of setting the same variable - don't use both.
+ 
+\emph on
+Default = (1).
+\end_layout
+
+\begin_layout Description
+dollo
+\begin_inset space ~
+\end_inset
+
+rate (Real.) The rate at which Dollo characters undergo 1->0 mutations.
+ Has no effect if 
+\begin_inset Quotes eld
+\end_inset
+
+dollo sites per tree
+\begin_inset Quotes erd
+\end_inset
+
+ is zero.
+
+\emph on
+ 
+\emph default
+(Dollo rate cannot vary with epoch, like e.g.
+ speciation rate.
+ This may change in subsequent versions of HybridSim.)
+\emph on
+ Default = 1.
+\end_layout
+
+\begin_layout Description
+dollo
+\begin_inset space ~
+\end_inset
+
+sites
+\begin_inset space ~
+\end_inset
+
+per
+\begin_inset space ~
+\end_inset
+
+tree (Integer.) If non-zero, a Dollo process presence/absence data will be
+ simulated on the network.
+ The output will include a CHARACTERS block with 
+\begin_inset Quotes eld
+\end_inset
+
+dollo sites per tree
+\begin_inset Quotes erd
+\end_inset
+
+
+\begin_inset Formula $\times$
+\end_inset
+
+
+\begin_inset Quotes erd
+\end_inset
+
+number random trees
+\begin_inset Quotes erd
+\end_inset
+
+ binary characters.
+ 
+\emph on
+Default = 0.
+\end_layout
+
+\begin_layout Description
+epochs (List of non-negative reals.) A list of zero or more times at which
+ various other parameters can change values.
+ Values must be in ascending order.
+ This is the only parameter allowed to take an empty list as its value.
+ 
+\emph on
+Default = ().
+
+\emph default
+ 
+\end_layout
+
+\begin_layout Description
+halt
+\begin_inset space ~
+\end_inset
+
+reticulations (Integer.) The maximum number of reticulation events that the
+ network can hold.
+ The simulation will halt and produce output immediately prior to an event
+ which would otherwise exceed this limit.
+ 
+\emph on
+Default = 20.
+\end_layout
+
+\begin_layout Description
+halt
+\begin_inset space ~
+\end_inset
+
+taxa (Integer.) The maximum number of taxa (leaf nodes) that the network
+ can grow to.
+ The simulation will halt and produce output immediately prior to an event
+ which would otherwise exceed this limit.
+ 
+\emph on
+Default = 20.
+\end_layout
+
+\begin_layout Description
+halt
+\begin_inset space ~
+\end_inset
+
+time (Real.) The maximum time the simulation will run for.
+ The simulation will halt and produce output at this time, unless the 
+\begin_inset Quotes eld
+\end_inset
+
+halt taxa
+\begin_inset Quotes erd
+\end_inset
+
+ or 
+\begin_inset Quotes eld
+\end_inset
+
+halt hybrid
+\begin_inset Quotes erd
+\end_inset
+
+ halting conditions are met first.
+ 
+\emph on
+Default = 10.
+\end_layout
+
+\begin_layout Description
+hybridization
+\begin_inset space ~
+\end_inset
+
+distribution (List of values/weights.) A discrete distribution specifying
+ the gene genetic contribution of the first parent to a new hybrid species.
+ 
+\emph on
+Default = (0.5,1), i.e.
+ always 50-50 contribution of genes from each parent.
+\end_layout
+
+\begin_layout Description
+hybridization
+\begin_inset space ~
+\end_inset
+
+leaf
+\begin_inset space ~
+\end_inset
+
+function One of 
+\begin_inset Quotes eld
+\end_inset
+
+const
+\begin_inset Quotes erd
+\end_inset
+
+,
+\begin_inset Quotes eld
+\end_inset
+
+linear
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+quadratic
+\begin_inset Quotes erd
+\end_inset
+
+.
+ Determines the rate over the entire network of hybridization events being
+ attempted.
+ The default 
+\begin_inset Quotes eld
+\end_inset
+
+quadratic
+\begin_inset Quotes erd
+\end_inset
+
+ gives the chance of a given pair of taxa attempting to hybridize being
+ independent of the number of taxa.
+ There is little reason to change this.
+\end_layout
+
+\begin_layout Description
+hybridization
+\begin_inset space ~
+\end_inset
+
+rate (List of non-negative reals.) The epoch-dependent rates at which pairs
+ of taxa will attempt to hybridize.
+ 
+\emph on
+Default = (1).
+\end_layout
+
+\begin_layout Description
+introgression
+\begin_inset space ~
+\end_inset
+
+distribution (List of values/weights.) A discrete distribution specifying
+ the gene genetic contribution from the introgressor species in an introgression
+ event.
+ 
+\emph on
+Default = (0.1,1), i.e.
+ always 10% contribution of genes from introgressor.
+\end_layout
+
+\begin_layout Description
+introgression
+\begin_inset space ~
+\end_inset
+
+leaf
+\begin_inset space ~
+\end_inset
+
+function As 
+\begin_inset Quotes eld
+\end_inset
+
+hybridization leaf function
+\begin_inset Quotes erd
+\end_inset
+
+ but for attempts to introgress.
+ There is little reason to change this.
+\end_layout
+
+\begin_layout Description
+introgression
+\begin_inset space ~
+\end_inset
+
+rate (List of non-negative reals.) The epoch-dependent rates at which pairs
+ of taxa will attempt to introgress.
+ 
+\emph on
+Default = (1).
+\end_layout
+
+\begin_layout Description
+number
+\begin_inset space ~
+\end_inset
+
+random
+\begin_inset space ~
+\end_inset
+
+trees (Integer.) The number of random (lineage or gene) trees to generate
+ in the output, in a TREES block.
+ Also affects the number of Dollo sites output (if any.) 
+\emph on
+Default = 1.
+\end_layout
+
+\begin_layout Description
+minimum
+\begin_inset space ~
+\end_inset
+
+reticulations (Integer.) Should the random network be generated with fewer
+ than this number of reticulation events, the network will be discarded
+ and a new one generated.
+ 
+\emph on
+Default = 0.
+\end_layout
+
+\begin_layout Description
+reduce
+\begin_inset space ~
+\end_inset
+
+reticulations
+\begin_inset space ~
+\end_inset
+
+to (Integer.) Should this value be positive and the random network have more
+ than this number of reticulation events, then reticulation events will
+ randomly be removed until this number is reached.
+ 
+\emph on
+Default = -1.
+\end_layout
+
+\begin_layout Description
+reticulation
+\begin_inset space ~
+\end_inset
+
+function one of 
+\begin_inset Quotes eld
+\end_inset
+
+linear
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+quadratic
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+step
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+exponential
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+snowball
+\begin_inset Quotes erd
+\end_inset
+
+.
+ See 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HybridSim"
+
+\end_inset
+
+ for details.
+\end_layout
+
+\begin_layout Description
+reticulation
+\begin_inset space ~
+\end_inset
+
+threshold (List of non-negative reals.) The epoch-dependent threshold genetic
+ difference beyond which hybridization and introgression are difficult or
+ impossible.
+ Interpretation depends on 
+\begin_inset Quotes eld
+\end_inset
+
+reticulation function
+\begin_inset Quotes erd
+\end_inset
+
+.
+ 
+\emph on
+Default = (1).
+\end_layout
+
+\begin_layout Description
+seed (Long integer.) Seed to the random number generator.
+ 
+\emph on
+Default = 4.
+ 
+\end_layout
+
+\begin_layout Description
+speciation
+\begin_inset space ~
+\end_inset
+
+leaf
+\begin_inset space ~
+\end_inset
+
+function One of 
+\begin_inset Quotes eld
+\end_inset
+
+const
+\begin_inset Quotes erd
+\end_inset
+
+,
+\begin_inset Quotes eld
+\end_inset
+
+linear
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+quadratic
+\begin_inset Quotes erd
+\end_inset
+
+.
+ Determines the rate over the entire network of speciation events ocurring.
+ The default 
+\begin_inset Quotes eld
+\end_inset
+
+linear
+\begin_inset Quotes erd
+\end_inset
+
+ gives a Yule process.
+ There is little reason to change this.
+\end_layout
+
+\begin_layout Description
+speciation
+\begin_inset space ~
+\end_inset
+
+rate (List of non-negative reals.) Epoch dependent list of the rate at which
+ a taxon will produce speciation events.
+ 
+\emph on
+Default = (1).
+ 
+\end_layout
+
+\begin_layout Subsection*
+Example
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+#NEXUS
+\end_layout
+
+\begin_layout Plain Layout
+
+begin hybridsim;
+\end_layout
+
+\begin_layout Plain Layout
+
+    epochs = (1);
+\end_layout
+
+\begin_layout Plain Layout
+
+    speciation rate = (3,0.5);
+\end_layout
+
+\begin_layout Plain Layout
+
+    hybridization rate = (0,2);
+\end_layout
+
+\begin_layout Plain Layout
+
+    introgression rate = 0;
+\end_layout
+
+\begin_layout Plain Layout
+
+    hybridization distribution = (0.1,1,0.25,1,0.5,2);
+\end_layout
+
+\begin_layout Plain Layout
+
+    reticulation threshold = 1;
+\end_layout
+
+\begin_layout Plain Layout
+
+    reticulation function = linear;
+\end_layout
+
+\begin_layout Plain Layout
+
+    minimum reticulations = 2;
+\end_layout
+
+\begin_layout Plain Layout
+
+    reduce reticulations to = 2;
+\end_layout
+
+\begin_layout Plain Layout
+
+    coalesce = true;
+\end_layout
+
+\begin_layout Plain Layout
+
+    coalescence rate = 6;
+\end_layout
+
+\begin_layout Plain Layout
+
+    halt time = 20;
+\end_layout
+
+\begin_layout Plain Layout
+
+    halt taxa = 20;
+\end_layout
+
+\begin_layout Plain Layout
+
+    halt reticulations = 30;
+\end_layout
+
+\begin_layout Plain Layout
+
+    dollo sites per tree = 0;
+\end_layout
+
+\begin_layout Plain Layout
+
+    filo sites per tree = 0;
+\end_layout
+
+\begin_layout Plain Layout
+
+    number random trees = 250;
+\end_layout
+
+\begin_layout Plain Layout
+
+    [Comments can be added but will not be transfered to the output file.]
+\end_layout
+
+\begin_layout Plain Layout
+
+end;
+\end_layout
+
+\end_inset
+
+In this example, we have two epochs, first from 
+\begin_inset Formula $t=0$
+\end_inset
+
+ to 
+\begin_inset Formula $t=1$
+\end_inset
+
+, then for 
+\begin_inset Formula $t>1$
+\end_inset
+
+ (line 3).
+ Speciation occurs at rate 3 during the first epoch and rate 0.5 in the second
+ epoch (line 4).
+ Hybridization does not occur (rate 0) in the first epoch and has rate 2
+ (per pair of species) in the second (line 5).
+ Introgression never occurs (line 6).
+ New hybrids get 50-50 gene contributions from their parents 50% of the
+ time, 75-25 contribution 25% of the time and 10-90 25% of the time (line
+ 7).
+ As introgression rate is zero, the 
+\begin_inset Quotes eld
+\end_inset
+
+introgression distribution
+\begin_inset Quotes erd
+\end_inset
+
+ is immaterial and we have not specified it.
+ The chance of an attempted reticulation succeeding linearly decreases (line
+ 9) from 100% at genetic distance of zero, to 0% at genetic distance of
+ 1 (line 8).
+ The generated network will have exactly two reticulation events (lines
+ 10 and 11.) 250 gene trees (line 19) will be generated by a coalescent process
+ (line 12), with coalescence rate 6 (line 13) at all epochs.
+ The generated network will have 20 leaf taxa (line 15) (unless the halt
+ time of 20 (14) or maximum reticulations (prior to being reduced) of 30
+ (line 16) occur first, which on these parameters is unlikely.) No Dollo
+ data will be produced (line 17, could be omitted as this is the default.)
+\end_layout
+
+\begin_layout Subsection*
+HybridABCGrid Nexus Block
+\end_layout
+
+\begin_layout Standard
+This block is optional.
+ It allows running HybridSim multiple times with varying parameters, and
+ recording summary statistics from each run.
+ In this mode, the output file is a space-delimited table with columns for
+ the parameters iterated over and for summary statistics on the generated
+ trees.
+\end_layout
+
+\begin_layout Standard
+Like the HybridSim block, it consists of <parameter> = <value> pairs.
+ Any valid parameter for HybridSim can be a HybridABCGrid parameter.
+ (In which case, the value specified in the hybridsim block will be ignored,
+ as the hybridabcgrid block value takes precidence.) The 
+\begin_inset Quotes eld
+\end_inset
+
+value
+\begin_inset Quotes erd
+\end_inset
+
+ specifies a column name and set of values to iterate over for that parameter.
+ In one form we use 
+\begin_inset Quotes eld
+\end_inset
+
+{}
+\begin_inset Quotes erd
+\end_inset
+
+ and a list of values separated by 
+\begin_inset Quotes eld
+\end_inset
+
+|
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+<parameter> = <columnName>{<value1>|<value2>...}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+e.g.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+epoch = EPOCH{(1,2)|(2,3)}
+\end_layout
+
+\begin_layout Plain Layout
+
+coalesence rate = cRate{5|15}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The alternative form specifies a column name followed by a specification
+ of numbers to iterate over, enclosed in parentheses 
+\begin_inset Quotes eld
+\end_inset
+
+()
+\begin_inset Quotes erd
+\end_inset
+
+.
+ The number iteration specification consists of a start value, stop value
+ and optional step size value, separated by 
+\begin_inset Quotes eld
+\end_inset
+
+:
+\begin_inset Quotes erd
+\end_inset
+
+.
+ E.g.
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+reduce reticulations to = HYBR(0:5)
+\end_layout
+
+\begin_layout Plain Layout
+
+coalescence rate = cRate(5:15:10)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In either case, the column name is used as the header to the column for
+ this value in the output text file.
+ If you want multiple simulations on a given set of parameters, iterate
+ over seed:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+seed = SEED(1:500)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+There are additional parameters to the HybridABCGrid block to control the
+ summary statistics which are output.
+ Both take a list of integers.
+ The lists are surrounded by 
+\begin_inset Quotes eld
+\end_inset
+
+{}
+\begin_inset Quotes erd
+\end_inset
+
+ and values separated by 
+\begin_inset Quotes eld
+\end_inset
+
+|
+\begin_inset Quotes erd
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Description
+split
+\begin_inset space ~
+\end_inset
+
+incompatibility
+\begin_inset space ~
+\end_inset
+
+thresholds (List of integers.) Gives the numbers (
+\begin_inset Quotes eld
+\end_inset
+
+#
+\begin_inset Quotes erd
+\end_inset
+
+) in the 
+\begin_inset Quotes eld
+\end_inset
+
+SI-#
+\begin_inset Quotes erd
+\end_inset
+
+ statistics 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HybridSim"
+
+\end_inset
+
+.
+ 
+\emph on
+Default = {1|2}, i.e.
+ output will have SI-1 and SI-2 statistics.
+\end_layout
+
+\begin_layout Description
+rare
+\begin_inset space ~
+\end_inset
+
+splits
+\begin_inset space ~
+\end_inset
+
+thresholds (List of integers.) Gives the numbers (
+\begin_inset Quotes eld
+\end_inset
+
+#
+\begin_inset Quotes erd
+\end_inset
+
+) in the 
+\begin_inset Quotes eld
+\end_inset
+
+RS#
+\begin_inset Quotes erd
+\end_inset
+
+ statistics
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HybridSim"
+
+\end_inset
+
+.
+ 
+\emph on
+Default = {1}.
+\end_layout
+
+\begin_layout Standard
+(It is also possible to define new statistics which are polynomials in the
+ existing statistics, but I choose not to document that feature.
+ In the unlikely event someone cares, they can read the source code.)
+\end_layout
+
+\begin_layout Section*
+Filo integration
+\end_layout
+
+\begin_layout Standard
+Filo
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Filo"
+
+\end_inset
+
+ is a very general sequence simulation program, able to simulate sequences
+ from inhomogeneous models (different DNA models on different branches)
+ and reticulate phylogenies (through different trees applying to different
+ parts of the sequence.) Filo uses Nexus format for input.
+ HybridSim is able to generate a useable Filo input block in its output,
+ so HybridSim's output file can be used as an input file to Filo.
+ To do this, it is necessary to set ``filo sites per tree'' to a non-zero
+ value, and to provide a template Filo block in the HybridSim input file.
+ The input Filo block passes through to the output, with the following edits:
+\end_layout
+
+\begin_layout Itemize
+Any 'tree' and 'treeparams' fields in the input are ignored.
+ New 'tree' and 'treeparams' fields are generated for the output, the trees
+ being random lineage trees.
+\end_layout
+
+\begin_layout Itemize
+The params field will be modified to give sequence length equal to ``filo
+ sites per tree'' 
+\begin_inset Formula $\times$
+\end_inset
+
+ ``number random trees''.
+\end_layout
+
+\begin_layout Itemize
+If the input contains a 'run' command it will be ignored.
+ A new 'run' command will be added at the end of the block.
+\end_layout
+
+\begin_layout Standard
+This does not exercise the full range of Filo's capabilities, for example
+ inhomogeneous models are not supported by this mechanism.
+ For example, with Filo template block
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+begin filo;
+\end_layout
+
+\begin_layout Plain Layout
+
+	output
+\end_layout
+
+\begin_layout Plain Layout
+
+		format = fasta, nexus, raw
+\end_layout
+
+\begin_layout Plain Layout
+
+		filename = hybridoutput
+\end_layout
+
+\begin_layout Plain Layout
+
+		precision 5
+\end_layout
+
+\begin_layout Plain Layout
+
+	;
+\end_layout
+
+\begin_layout Plain Layout
+
+	matrix HKY = HKY85 0.2 0.5 [ 0.25 0.05 0.25 0.45 ];
+\end_layout
+
+\begin_layout Plain Layout
+
+	params
+\end_layout
+
+\begin_layout Plain Layout
+
+		l 400
+\end_layout
+
+\begin_layout Plain Layout
+
+		indel 0
+\end_layout
+
+\begin_layout Plain Layout
+
+	;
+\end_layout
+
+\begin_layout Plain Layout
+
+	run;
+\end_layout
+
+\begin_layout Plain Layout
+
+end;
+\end_layout
+
+\end_inset
+
+we could end up with a Filo block in the output which looks like
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+BEGIN Filo;
+\end_layout
+
+\begin_layout Plain Layout
+
+	output
+\end_layout
+
+\begin_layout Plain Layout
+
+		format = fasta, nexus, raw
+\end_layout
+
+\begin_layout Plain Layout
+
+		filename = hybridoutput
+\end_layout
+
+\begin_layout Plain Layout
+
+		precision 5
+\end_layout
+
+\begin_layout Plain Layout
+
+		;
+\end_layout
+
+\begin_layout Plain Layout
+
+	matrix HKY = HKY85 0.2 0.5 [ 0.25 0.05 0.25 0.45 ];
+\end_layout
+
+\begin_layout Plain Layout
+
+	params
+\end_layout
+
+\begin_layout Plain Layout
+
+		l 40
+\end_layout
+
+\begin_layout Plain Layout
+
+		indel 0
+\end_layout
+
+\begin_layout Plain Layout
+
+	;
+\end_layout
+
+\begin_layout Plain Layout
+
+	tree t1  =((C:0.6028567,F:0.6028567):0.8836763,(((D:0.4711576,H:0.4711576):0.1698768,
+(B:0.5803182,G:0.5803182):0.0607162):0.2117720,(A:0.5227736,E:0.5227736):0.3300328):0.63
+37266);
+\end_layout
+
+\begin_layout Plain Layout
+
+	treeparams t1
+\end_layout
+
+\begin_layout Plain Layout
+
+ 		l 20
+\end_layout
+
+\begin_layout Plain Layout
+
+	;
+\end_layout
+
+\begin_layout Plain Layout
+
+	tree t2  =((A:1.3671101,((G:0.4427599,B:0.4427599):0.3076275,(H:0.3904380,E:0.3904380
+):0.3599494):0.6167227):1.0226791,(C:0.6596898,(D:0.6093377,F:0.6093377):0.0503521):1.73
+00994);
+\end_layout
+
+\begin_layout Plain Layout
+
+	treeparams t2
+\end_layout
+
+\begin_layout Plain Layout
+
+ 		l 20
+\end_layout
+
+\begin_layout Plain Layout
+
+	;
+\end_layout
+
+\begin_layout Plain Layout
+
+	run ;
+\end_layout
+
+\begin_layout Plain Layout
+
+END; 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+EBNF
+\end_layout
+
+\begin_layout Subsubsection*
+The HybridSim block:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+HybridSim block = "begin hybridsim", {hybridsim assignment | nexus comment},
+ "end;" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+nexus comment = "[", text, "]" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+hybridsim assignment = epoch assignment | list assignment | discrete distributio
+n assignment |
+\end_layout
+
+\begin_layout Plain Layout
+
+          integer assignment | hybrid function assignment | boolean assignment
+ | real assignment | long integer assignment | leaf function assignment;
+\end_layout
+
+\begin_layout Plain Layout
+
+epoch assignment = "epochs", "=", real list, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+real list = "()" | nonempty real list ;
+\end_layout
+
+\begin_layout Plain Layout
+
+nonempty real list = nonnegative real number | "(", list of reals, ")" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+list of reals = nonnegative real number, {",", nonnegative real number}
+ ;
+\end_layout
+
+\begin_layout Plain Layout
+
+list assignment = list parameter, "=", nonempty real list, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+list parameter = "speciation rate" | "hybridization rate" | "introgression
+ rate" |
+\end_layout
+
+\begin_layout Plain Layout
+
+              "reticulation threshold" | "coalescence rate" | "coalescence
+ time" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+discrete distribution assignment = distribution parameter, "=", distribution
+ list, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+distribution parameter = "hybridization distribution" | "introgression distribut
+ion" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+distribution list = "(", zero to one real, ",", nonnegative real number,
+ {",", zero to one real, ",", nonnegative real number}, ")"
+\end_layout
+
+\begin_layout Plain Layout
+
+zero to one real = [0], ".", digit, {digit}
+\end_layout
+
+\begin_layout Plain Layout
+
+integer assignment = integer parameter, "=", nonnegative integer, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+integer parameter = "halt taxa" | "halt hybrid" | "number random trees"
+ | "dollo sites per tree" | "minimum reticulations" | "reduce reticulations
+ to" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+long integer assignment = long integer parameter, "=", [-], nonnegative
+ integer, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+long integer parameter = "seed" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+hybrid function assignment = reticulation function parameter, "=", reticulation
+ function, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+reticulation function parameter = "reticulation function" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+reticulation function = "linear" | "quadratic" | "step" | "exponential"
+ | "snowball" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+leaf function assignment = leaf function parameter, "=", leaf function,
+ ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+leaf function paramter = "speciation leaf function" | "hybridization leaf
+ function" | "introgression leaf function" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+leaf function = ("const" | "linear" | "quadratic") ;
+\end_layout
+
+\begin_layout Plain Layout
+
+boolean assignment = boolean parameter, "=", ("true" | "false"), ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+boolean parameter = "coalesce" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+real assignment = real parameter, "=", nonnegative real number, ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+real parameter = "dollo rate" | "halt time" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+nonnegative real number
+\end_layout
+
+\begin_layout Plain Layout
+
+digit
+\end_layout
+
+\begin_layout Plain Layout
+
+nonnegative integer
+\end_layout
+
+\begin_layout Plain Layout
+
+text
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Comments:
+\end_layout
+
+\begin_layout Standard
+Any 
+\begin_inset Quotes eld
+\end_inset
+
+nonempty real list
+\begin_inset Quotes erd
+\end_inset
+
+ must either be of length 1, or length one greater than the 
+\begin_inset Quotes eld
+\end_inset
+
+epochs
+\begin_inset Quotes erd
+\end_inset
+
+ list.
+ The 
+\begin_inset Quotes eld
+\end_inset
+
+epochs
+\begin_inset Quotes erd
+\end_inset
+
+ list must be in increasing order.
+ 
+\begin_inset Quotes eld
+\end_inset
+
+zero to one real
+\begin_inset Quotes erd
+\end_inset
+
+ can also include exponential form (e.g.
+ 
+\begin_inset Quotes eld
+\end_inset
+
+1.4e-3
+\begin_inset Quotes erd
+\end_inset
+
+) so long as it lies between zero and one.
+ Nexus comments can be nested - I haven't attempted to represent this in
+ the grammar.
+\end_layout
+
+\begin_layout Standard
+All input is not case sensitive.
+ Within a parameter name, white space is significant (e.g.
+ 
+\begin_inset Quotes eld
+\end_inset
+
+halt time
+\begin_inset Quotes erd
+\end_inset
+
+ must have a single space, not two spaces or a tab character.) Outside of
+ parameter names it is not significant, except there cannot be a new line
+ character between a parameter name and the following 
+\begin_inset Quotes eld
+\end_inset
+
+=
+\begin_inset Quotes erd
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsubsection*
+The HybridABCGrid block:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+HybridABCGrid block = "begin hybridabcgrid", {hybridgrid assignment | nexus
+ comment}, "end;" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+hybridgrid assignment = iterator assignment | summary stats specifier;
+\end_layout
+
+\begin_layout Plain Layout
+
+summary stats specifier = ("split incompatibility thresholds" | "rare splits
+ thresholds"), "=", "{", positive integer, {",", positive integer}, "}",
+ ";" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+iterator assignment = hybridsim parameter, "=", column label, iterator,
+ ";", ;
+\end_layout
+
+\begin_layout Plain Layout
+
+iterator = numeric iterator | list iterator;
+\end_layout
+
+\begin_layout Plain Layout
+
+numeric iterator = "(", positive integer, ":", positive integer, [":", positive
+ integer], ")" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+list iterator = "{", text, { "|", text }, "}" ;
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+hybridsim paramter = list parameter | distribution paramter | integer parameter
+ | long integer parameter | reticulation function parameter | leaf function
+ parameter | boolean parameter | real parameter
+\end_layout
+
+\begin_layout Plain Layout
+
+positive integer
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Comments:
+\end_layout
+
+\begin_layout Standard
+In a 
+\begin_inset Quotes eld
+\end_inset
+
+list iterator
+\begin_inset Quotes erd
+\end_inset
+
+, the text must be a legal value for the corresponding HybridSim parameter.
+\end_layout
+
+\begin_layout Subsection*
+Command Line Options
+\end_layout
+
+\begin_layout Standard
+The options are:
+\end_layout
+
+\begin_layout Description
+-i
+\begin_inset space ~
+\end_inset
+
+<inputfile> The name of the input file.
+ 
+\emph on
+Default = input.nex
+\end_layout
+
+\begin_layout Description
+-o
+\begin_inset space ~
+\end_inset
+
+<outputfile> The name of the output file.
+ 
+\emph on
+Default = output.nex or output.table
+\end_layout
+
+\begin_layout Description
+-s
+\begin_inset space ~
+\end_inset
+
+<number> Sets the pseudorandom number generator seed.
+ Overrides any value set in hybridsim Nexus block, but not in HybridABCGrid
+ block.
+ (The output Nexus file will record this number.)
+\end_layout
+
+\begin_layout Standard
+The space between flag name and argument is optional.
+ For example
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+java -jar hybridsim.jar -i example.nex -o output5.nex -s5
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Nexus Output Format
+\end_layout
+
+\begin_layout Standard
+If there is no HybridABCGrid block, the output will be a Nexus file.
+ This file is useable as input to HybridSeq, and if so used will recreate
+ itself exactly.
+ There are three output trees blocks.
+ These are identified with comments.
+ The output nexus file will contain blocks:
+\end_layout
+
+\begin_layout Description
+HybridSeq containing the input parameters to the simulation
+\end_layout
+
+\begin_layout Description
+Taxa containing the taxon names for the network, which will be 
+\begin_inset Quotes eld
+\end_inset
+
+A
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+B
+\begin_inset Quotes erd
+\end_inset
+
+, etc.
+\end_layout
+
+\begin_layout Description
+Trees The first trees block will exhaustively list the lineage trees with
+ their probabilities specified in comments.
+ Tree names start with 
+\begin_inset Quotes eld
+\end_inset
+
+ELT
+\begin_inset Quotes erd
+\end_inset
+
+ (for 
+\begin_inset Quotes eld
+\end_inset
+
+exact lineage tree
+\begin_inset Quotes erd
+\end_inset
+
+.) This block may be omitted if the number of lineage trees is too large.
+ (The number grows exponentially with the number of reticulation events.)
+\end_layout
+
+\begin_layout Description
+Trees The second trees block contains randomly selected (with weight equal
+ to their probability) lineage trees.
+ The number of randomly selected trees is determined by the 
+\begin_inset Quotes eld
+\end_inset
+
+number random trees
+\begin_inset Quotes erd
+\end_inset
+
+ parameter.
+ These trees have names starting 
+\begin_inset Quotes eld
+\end_inset
+
+RLT
+\begin_inset Quotes erd
+\end_inset
+
+ (random lineage tree.) 
+\end_layout
+
+\begin_layout Description
+Trees The third trees block contains coalescent (i.e.
+ gene) trees derived from the lineage trees of the previous block.
+ These trees have names starting 
+\begin_inset Quotes eld
+\end_inset
+
+CT
+\begin_inset Quotes erd
+\end_inset
+
+ (coalescent tree.) This block will be absent if parameter 
+\begin_inset Quotes eld
+\end_inset
+
+coalesce
+\begin_inset Quotes erd
+\end_inset
+
+ is false.
+\end_layout
+
+\begin_layout Description
+eNewick This block specifies the network in 'extended Newick' format.
+\begin_inset CommandInset citation
+LatexCommand cite
+key "extNewick"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Description
+Distances This block records the average distance between taxa.
+ If ``reduce reticulations to'' has non-default value, the Distances block
+ is not output.
+ (This is because eliminating reticulations modifies the distance matrix
+ and there currently is no code to recalculate it correctly when this happens.
+ Such code could be added if there is a need for it.)
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset bibtex
+LatexCommand bibtex
+bibfiles "hybridsim"
+options "plain"
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
